@@ -21,10 +21,12 @@ public static class Compiler
 {
     sealed class Collector(List<Diagnostic> sink, string phase) : IAntlrErrorListener<int>, IAntlrErrorListener<IToken>
     {
-        public void SyntaxError(TextWriter output, IRecognizer recognizer, int offendingSymbol, int line, int col, string msg, RecognitionException e)
+        public void SyntaxError(TextWriter output, IRecognizer recognizer, int offendingSymbol, int line, int col,
+            string msg, RecognitionException e)
             => sink.Add(new(Severity.Error, phase, line, col, msg));
 
-        public void SyntaxError(TextWriter output, IRecognizer recognizer, IToken offendingSymbol, int line, int col, string msg, RecognitionException e)
+        public void SyntaxError(TextWriter output, IRecognizer recognizer, IToken offendingSymbol, int line, int col,
+            string msg, RecognitionException e)
             => sink.Add(new(Severity.Error, phase, line, col, msg));
     }
 
@@ -44,7 +46,7 @@ public static class Compiler
         if (result.HasErrors) return result;
 
         var ast = AstBuilder.Build(tree);
-        result.Ast = ast.Clone();   // as parsed, before semantic folding
+        result.Ast = ast.Clone(); // as parsed, before semantic folding
 
         var info = Checker.Check(ast, result.Diagnostics);
         result.FoldedAst = ast;
@@ -58,6 +60,7 @@ public static class Compiler
         {
             result.Diagnostics.Add(new(Severity.Error, "codegen", ex.Line, 0, ex.Message));
         }
+
         return result;
     }
 }
@@ -72,16 +75,18 @@ static class CstExport
         var ctx = (Antlr4.Runtime.ParserRuleContext)t;
         var names = new List<string>();
         IParseTree cur = ctx;
-        while (cur is Antlr4.Runtime.ParserRuleContext c && c.ChildCount == 1 && c.GetChild(0) is Antlr4.Runtime.ParserRuleContext)
+        while (cur is Antlr4.Runtime.ParserRuleContext c && c.ChildCount == 1 &&
+               c.GetChild(0) is Antlr4.Runtime.ParserRuleContext)
         {
             names.Add(rules[c.RuleIndex]);
             cur = c.GetChild(0);
         }
+
         var last = (Antlr4.Runtime.ParserRuleContext)cur;
         names.Add(rules[last.RuleIndex]);
         var node = new AstNode(string.Join(" › ", names), null, last.Start?.Line ?? 0);
         for (var i = 0; i < last.ChildCount; i++)
-            if (last.GetChild(i) is not ITerminalNode { Symbol.Type: -1 })   // skip EOF
+            if (last.GetChild(i) is not ITerminalNode { Symbol.Type: -1 }) // skip EOF
                 node.Children.Add(Export(last.GetChild(i), rules));
         return node;
     }

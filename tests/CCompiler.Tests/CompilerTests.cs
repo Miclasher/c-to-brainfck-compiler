@@ -19,11 +19,13 @@ public class CompilerTests
             if (c == '[') depth++;
             else if (c == ']' && --depth < 0) return false;
         }
+
         return depth == 0;
     }
 
     public static IEnumerable<object[]> Samples() =>
-        Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "samples"), "*.c").Select(f => new object[] { Path.GetFileName(f) });
+        Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "samples"), "*.c")
+            .Select(f => new object[] { Path.GetFileName(f) });
 
     [Theory, MemberData(nameof(Samples))]
     public void Samples_compile_to_balanced_brainfuck(string file)
@@ -46,8 +48,10 @@ public class CompilerTests
     [Fact]
     public void Annotations_never_add_instruction_characters()
     {
-        var plain = Compiler.Compile("int main(void){ int a = 1; a += 2; printf(\"x-y\"); return 0; }", annotate: false).Brainfuck!;
-        var noted = Compiler.Compile("int main(void){ int a = 1; a += 2; printf(\"x-y\"); return 0; }", annotate: true).Brainfuck!;
+        var plain = Compiler.Compile("int main(void){ int a = 1; a += 2; printf(\"x-y\"); return 0; }", annotate: false)
+            .Brainfuck!;
+        var noted = Compiler.Compile("int main(void){ int a = 1; a += 2; printf(\"x-y\"); return 0; }", annotate: true)
+            .Brainfuck!;
         string Ops(string s) => new(s.Where(c => "+-<>[].,".Contains(c)).ToArray());
         Assert.Equal(Ops(plain), Ops(noted));
     }
@@ -57,7 +61,8 @@ public class CompilerTests
     {
         var r = Compile("int x = 2 * 3 + 1; int y = 200 + 100; int z = 7 / 2 + (1 < 2);");
         Assert.Empty(Errors(r));
-        var nums = r.FoldedAst!.Walk().Where(n => n.Kind == "VarDecl").Select(d => d.Children.Single(c => c.Kind == "Init").Children[0]).ToList();
+        var nums = r.FoldedAst!.Walk().Where(n => n.Kind == "VarDecl")
+            .Select(d => d.Children.Single(c => c.Kind == "Init").Children[0]).ToList();
         Assert.All(nums, n => Assert.Equal("Num", n.Kind));
         Assert.Equal([7, 44, 4], nums.Select(n => n.Value));
         Assert.True(nums[0].Folded);
@@ -114,7 +119,8 @@ public class CompilerTests
     [Fact]
     public void Recursion_and_missing_main_are_rejected()
     {
-        Assert.Contains(Errors(Compiler.Compile("int f(int n) { return f(n); } int main(void) { f(1); return 0; }")), m => m.Contains("recursion"));
+        Assert.Contains(Errors(Compiler.Compile("int f(int n) { return f(n); } int main(void) { f(1); return 0; }")),
+            m => m.Contains("recursion"));
         Assert.Contains(Errors(Compiler.Compile("int x;")), m => m.Contains("no 'main'"));
     }
 
@@ -142,7 +148,8 @@ public class CompilerTests
     [Fact]
     public void Full_c_still_parses_even_when_codegen_is_impossible()
     {
-        var r = Compiler.Compile("typedef struct { int a; } T; int main(void) { T t; int *p = &t.a; return sizeof(t); }");
+        var r = Compiler.Compile(
+            "typedef struct { int a; } T; int main(void) { T t; int *p = &t.a; return sizeof(t); }");
         Assert.DoesNotContain(r.Diagnostics, d => d.Phase is "lexer" or "parser");
         Assert.NotNull(r.Ast);
         Assert.True(r.HasErrors);

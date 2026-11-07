@@ -2,7 +2,11 @@ using CCompiler.Core.Ast;
 
 namespace CCompiler.Core.Semantics;
 
-public enum SymbolKind { Variable, Function }
+public enum SymbolKind
+{
+    Variable,
+    Function
+}
 
 /// <summary>A declared name. Variables own <see cref="Size"/> consecutive tape cells starting at <see cref="Cell"/>.</summary>
 public sealed class Symbol

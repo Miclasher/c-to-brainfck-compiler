@@ -5,6 +5,7 @@ namespace CCompiler.Core.Semantics;
 public sealed class ProgramInfo
 {
     public Symbol? Main { get; set; }
+
     /// <summary>Number of tape cells reserved for variables; scratch cells start right after.</summary>
     public int VarCells { get; set; }
 }
@@ -25,7 +26,10 @@ public sealed class Checker
     int _nextCell;
     int _loopDepth;
 
-    Checker(List<Diagnostic> diags) { _diags = diags; }
+    Checker(List<Diagnostic> diags)
+    {
+        _diags = diags;
+    }
 
     public static ProgramInfo Check(AstNode program, List<Diagnostic> diags)
     {
@@ -45,7 +49,8 @@ public sealed class Checker
     Symbol? Lookup(string name)
     {
         for (var i = _scopes.Count - 1; i >= 0; i--)
-            if (_scopes[i].TryGetValue(name, out var s)) return s;
+            if (_scopes[i].TryGetValue(name, out var s))
+                return s;
         return null;
     }
 
@@ -56,11 +61,18 @@ public sealed class Checker
             Error(at, $"'{s.Name}' is already declared in this scope");
             return null;
         }
+
         _scopes[^1][s.Name] = s;
         return s;
     }
 
-    int Alloc(int size) { var c = _nextCell; _nextCell += size; _info.VarCells = _nextCell; return c; }
+    int Alloc(int size)
+    {
+        var c = _nextCell;
+        _nextCell += size;
+        _info.VarCells = _nextCell;
+        return c;
+    }
 
     // ───────────── top level ─────────────
 
@@ -77,6 +89,7 @@ public sealed class Checker
                 default: Stmt(item); break;
             }
         }
+
         Pop();
         if (_info.Main is null) _diags.Add(new(Severity.Error, "semantic", 0, 0, "no 'main' function"));
     }
@@ -84,21 +97,38 @@ public sealed class Checker
     bool CheckType(AstNode at, string? type, bool allowVoid)
     {
         if (type is null) return false;
-        if (type.Contains('*')) { Error(at, $"pointer type '{type}' is not supported by the Brainfuck backend"); return false; }
-        if (type.EndsWith("[]")) { Error(at, "array parameters are not supported"); return false; }
-        if (type == "void") { if (!allowVoid) Error(at, "variable cannot be void"); return allowVoid; }
+        if (type.Contains('*'))
+        {
+            Error(at, $"pointer type '{type}' is not supported by the Brainfuck backend");
+            return false;
+        }
+
+        if (type.EndsWith("[]"))
+        {
+            Error(at, "array parameters are not supported");
+            return false;
+        }
+
+        if (type == "void")
+        {
+            if (!allowVoid) Error(at, "variable cannot be void");
+            return allowVoid;
+        }
+
         var words = type.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0 || words.Any(w => !IntWords.Contains(w)))
         {
             Error(at, $"type '{type}' is not supported (only integer types, modelled as 8-bit cells)");
             return false;
         }
+
         return true;
     }
 
     void FuncDef(AstNode f)
     {
-        var sym = new Symbol { Name = f.Text!, Kind = SymbolKind.Function, Type = f.Type ?? "int", Line = f.Line, Definition = f };
+        var sym = new Symbol
+            { Name = f.Text!, Kind = SymbolKind.Function, Type = f.Type ?? "int", Line = f.Line, Definition = f };
         sym.ReturnsVoid = sym.Type == "void";
         if (!sym.ReturnsVoid) CheckType(f, sym.Type, false);
         if (Declare(f, sym) is null) return;
@@ -106,17 +136,30 @@ public sealed class Checker
         if (f.Text == "main") _info.Main = sym;
 
         _currentFunc = sym;
-        var savedDepth = _loopDepth; _loopDepth = 0;
+        var savedDepth = _loopDepth;
+        _loopDepth = 0;
         Push();
         foreach (var p in f.Children[0].Children)
         {
-            if (string.IsNullOrEmpty(p.Text)) { Error(p, "parameter without a name"); continue; }
+            if (string.IsNullOrEmpty(p.Text))
+            {
+                Error(p, "parameter without a name");
+                continue;
+            }
+
             CheckType(p, p.Type, false);
-            var ps = new Symbol { Name = p.Text, Kind = SymbolKind.Variable, Type = p.Type ?? "int", Line = p.Line, Cell = Alloc(1) };
-            if (Declare(p, ps) is not null) { p.Symbol = ps; sym.Params.Add(ps); }
+            var ps = new Symbol
+                { Name = p.Text, Kind = SymbolKind.Variable, Type = p.Type ?? "int", Line = p.Line, Cell = Alloc(1) };
+            if (Declare(p, ps) is not null)
+            {
+                p.Symbol = ps;
+                sym.Params.Add(ps);
+            }
         }
+
         if (f.Text == "main" && sym.Params.Count > 0) Error(f, "main with parameters is not supported");
-        if (!sym.ReturnsVoid) sym.ReturnCell = new Symbol { Name = "$ret", Kind = SymbolKind.Variable, Cell = Alloc(1) };
+        if (!sym.ReturnsVoid)
+            sym.ReturnCell = new Symbol { Name = "$ret", Kind = SymbolKind.Variable, Cell = Alloc(1) };
 
         var body = f.Children[1];
         Push();
@@ -126,6 +169,7 @@ public sealed class Checker
             if (s.Kind == "Return" && i == body.Children.Count - 1) ReturnStmt(s, sym);
             else Stmt(s);
         }
+
         Pop();
         Pop();
         _loopDepth = savedDepth;
@@ -146,7 +190,11 @@ public sealed class Checker
 
     void VarDecl(AstNode d)
     {
-        if (!CheckType(d, d.Type, false)) { Declare(d, new Symbol { Name = d.Text!, Kind = SymbolKind.Variable, Cell = 0, Line = d.Line }); return; }
+        if (!CheckType(d, d.Type, false))
+        {
+            Declare(d, new Symbol { Name = d.Text!, Kind = SymbolKind.Variable, Cell = 0, Line = d.Line });
+            return;
+        }
 
         var sizeNode = d.Children.FirstOrDefault(c => c.Kind == "ArraySize");
         var init = d.Children.FirstOrDefault(c => c.Kind == "Init")?.Children[0];
@@ -165,7 +213,9 @@ public sealed class Checker
             else if (init is { Kind: "InitList" }) n = init.Children.Count;
             else if (init is { Kind: "Str" }) n = init.Bytes!.Length + 1;
             else Error(d, "array size is missing");
-            if (n <= 0 && sizeNode.Children.Count == 1 && IsConst(sizeNode.Children[0])) Error(d, "array size must be positive");
+
+            if (n <= 0 && sizeNode.Children.Count == 1 && IsConst(sizeNode.Children[0]))
+                Error(d, "array size must be positive");
             sym.Size = Math.Max(n, 1);
         }
 
@@ -186,18 +236,21 @@ public sealed class Checker
                 {
                     if (e.Kind == "InitList") Error(e, "nested initializer lists are not supported");
                     else Expr(e);
-                    if (e.Kind != "InitList" && !IsConst(e)) Warn(e, "non-constant array initializer is evaluated at run time");
+                    if (e.Kind != "InitList" && !IsConst(e))
+                        Warn(e, "non-constant array initializer is evaluated at run time");
                 }
             }
             else if (init.Kind == "Str")
             {
-                if (init.Bytes!.Length + 1 > sym.Size) Error(d, $"string initializer too long for '{sym.Name}[{sym.Size}]'");
+                if (init.Bytes!.Length + 1 > sym.Size)
+                    Error(d, $"string initializer too long for '{sym.Name}[{sym.Size}]'");
             }
             else Error(d, $"array '{sym.Name}' must be initialised with a list or string");
         }
         else
         {
-            if (init.Kind is "InitList" or "Str") Error(d, $"cannot initialise scalar '{sym.Name}' with {(init.Kind == "Str" ? "a string" : "a list")}");
+            if (init.Kind is "InitList" or "Str")
+                Error(d, $"cannot initialise scalar '{sym.Name}' with {(init.Kind == "Str" ? "a string" : "a list")}");
             else Expr(init);
         }
     }
@@ -239,7 +292,8 @@ public sealed class Checker
             case "Return":
                 Error(s, "'return' is only supported as the last statement of a function");
                 break;
-            case "Break": case "Continue":
+            case "Break":
+            case "Continue":
                 if (_loopDepth == 0) Error(s, $"'{s.Kind.ToLowerInvariant()}' outside of a loop");
                 break;
             case "Unsupported":
@@ -252,9 +306,19 @@ public sealed class Checker
         }
     }
 
-    void ScopedStmt(AstNode s) { Push(); Stmt(s); Pop(); }
+    void ScopedStmt(AstNode s)
+    {
+        Push();
+        Stmt(s);
+        Pop();
+    }
 
-    void LoopBody(AstNode s) { _loopDepth++; ScopedStmt(s); _loopDepth--; }
+    void LoopBody(AstNode s)
+    {
+        _loopDepth++;
+        ScopedStmt(s);
+        _loopDepth--;
+    }
 
     // ───────────── expressions ─────────────
 
@@ -263,13 +327,24 @@ public sealed class Checker
     static void SetConst(AstNode n, int v)
     {
         v &= 0xFF;
-        n.Kind = "Num"; n.Text = v.ToString(); n.Value = v; n.Children.Clear(); n.Folded = true; n.Symbol = null;
+        n.Kind = "Num";
+        n.Text = v.ToString();
+        n.Value = v;
+        n.Children.Clear();
+        n.Folded = true;
+        n.Symbol = null;
     }
 
     static void Replace(AstNode n, AstNode other)
     {
-        n.Kind = other.Kind; n.Text = other.Text; n.Type = other.Type; n.Value = other.Value;
-        n.Bytes = other.Bytes; n.Symbol = other.Symbol; n.Children = other.Children; n.Folded = true;
+        n.Kind = other.Kind;
+        n.Text = other.Text;
+        n.Type = other.Type;
+        n.Value = other.Value;
+        n.Bytes = other.Bytes;
+        n.Symbol = other.Symbol;
+        n.Children = other.Children;
+        n.Folded = true;
     }
 
     void Expr(AstNode n)
@@ -281,14 +356,30 @@ public sealed class Checker
                     Warn(n, $"constant {big} does not fit an 8-bit cell, wraps to {n.Value}");
                 break;
             case "Char": break;
-            case "Str": Error(n, "string literals are only allowed as printf/puts arguments or array initialisers"); break;
+            case "Str":
+                Error(n, "string literals are only allowed as printf/puts arguments or array initialisers"); break;
             case "Unsupported": Error(n, $"{n.Text} is not supported by the Brainfuck backend"); break;
             case "Id":
             {
                 var s = Lookup(n.Text!);
-                if (s is null) { Error(n, $"'{n.Text}' is not declared"); break; }
-                if (s.Kind == SymbolKind.Function) { Error(n, $"function '{n.Text}' used as a value"); break; }
-                if (s.IsArray) { Error(n, $"array '{n.Text}' used as a value (pointers are not supported)"); break; }
+                if (s is null)
+                {
+                    Error(n, $"'{n.Text}' is not declared");
+                    break;
+                }
+
+                if (s.Kind == SymbolKind.Function)
+                {
+                    Error(n, $"function '{n.Text}' used as a value");
+                    break;
+                }
+
+                if (s.IsArray)
+                {
+                    Error(n, $"array '{n.Text}' used as a value (pointers are not supported)");
+                    break;
+                }
+
                 n.Symbol = s;
                 break;
             }
@@ -307,7 +398,8 @@ public sealed class Checker
                 foreach (var c in n.Children) Expr(c);
                 break;
             case "Assign": Assign(n); break;
-            case "PreInc": case "PostInc":
+            case "PreInc":
+            case "PostInc":
                 Expr(n.Children[0]);
                 RequireLvalue(n.Children[0]);
                 break;
@@ -320,10 +412,25 @@ public sealed class Checker
     {
         var b = n.Children[0];
         Expr(n.Children[1]);
-        if (b.Kind != "Id") { Error(n, "only named arrays can be indexed"); return; }
+        if (b.Kind != "Id")
+        {
+            Error(n, "only named arrays can be indexed");
+            return;
+        }
+
         var s = Lookup(b.Text!);
-        if (s is null) { Error(b, $"'{b.Text}' is not declared"); return; }
-        if (!s.IsArray) { Error(b, $"'{b.Text}' is not an array"); return; }
+        if (s is null)
+        {
+            Error(b, $"'{b.Text}' is not declared");
+            return;
+        }
+
+        if (!s.IsArray)
+        {
+            Error(b, $"'{b.Text}' is not an array");
+            return;
+        }
+
         b.Symbol = s;
         n.Symbol = s;
         if (!IsConst(n.Children[1]))
@@ -331,7 +438,9 @@ public sealed class Checker
             Error(n, "array indices must be compile-time constants (the tape has no computed addressing)");
             return;
         }
-        if (n.Children[1].Value >= s.Size) Error(n, $"index {n.Children[1].Value} is out of bounds for '{s.Name}[{s.Size}]'");
+
+        if (n.Children[1].Value >= s.Size)
+            Error(n, $"index {n.Children[1].Value} is out of bounds for '{s.Name}[{s.Size}]'");
     }
 
     void RequireLvalue(AstNode lhs)
@@ -348,11 +457,20 @@ public sealed class Checker
         var op = n.Text!;
         if (op is "<<=" or ">>=")
         {
-            if (!IsConst(n.Children[1])) { Error(n, "shift amount must be a constant"); return; }
+            if (!IsConst(n.Children[1]))
+            {
+                Error(n, "shift amount must be a constant");
+                return;
+            }
+
             var k = n.Children[1].Value;
             SetConst(n.Children[1], k >= 8 ? 0 : 1 << k);
             n.Text = op == "<<=" ? "*=" : "/=";
-            if (op == ">>=" && k >= 8) { n.Text = "="; SetConst(n.Children[1], 0); }
+            if (op == ">>=" && k >= 8)
+            {
+                n.Text = "=";
+                SetConst(n.Children[1], 0);
+            }
         }
         else if (op is "&=" or "|=" or "^=")
             Error(n, $"'{op}' is not supported at run time (bitwise operators only fold constants)");
@@ -366,8 +484,12 @@ public sealed class Checker
         var c = n.Children[0];
         switch (n.Text)
         {
-            case "&": case "*": Error(n, "pointers are not supported by the Brainfuck backend"); return;
+            case "&":
+            case "*":
+                Error(n, "pointers are not supported by the Brainfuck backend");
+                return;
         }
+
         if (!IsConst(c)) return;
         var v = c.Value;
         SetConst(n, n.Text switch { "-" => -v, "+" => v, "~" => ~v, "!" => v == 0 ? 1 : 0, _ => v });
@@ -375,14 +497,21 @@ public sealed class Checker
 
     void Binary(AstNode n)
     {
-        var l = n.Children[0]; var r = n.Children[1];
-        Expr(l); Expr(r);
+        var l = n.Children[0];
+        var r = n.Children[1];
+        Expr(l);
+        Expr(r);
         var op = n.Text!;
 
         if (IsConst(l) && IsConst(r))
         {
             int a = l.Value, b = r.Value;
-            if (op is "/" or "%" && b == 0) { Error(n, "division by zero in constant expression"); return; }
+            if (op is "/" or "%" && b == 0)
+            {
+                Error(n, "division by zero in constant expression");
+                return;
+            }
+
             SetConst(n, op switch
             {
                 "+" => a + b, "-" => a - b, "*" => a * b, "/" => a / b, "%" => a % b,
@@ -399,8 +528,18 @@ public sealed class Checker
         switch (op)
         {
             case "<<" or ">>":
-                if (!IsConst(r)) { Error(n, "shift amount must be a constant"); return; }
-                if (r.Value >= 8) { SetConst(n, 0); return; }
+                if (!IsConst(r))
+                {
+                    Error(n, "shift amount must be a constant");
+                    return;
+                }
+
+                if (r.Value >= 8)
+                {
+                    SetConst(n, 0);
+                    return;
+                }
+
                 n.Text = op == "<<" ? "*" : "/";
                 SetConst(r, 1 << r.Value);
                 break;
@@ -419,7 +558,12 @@ public sealed class Checker
         var args = n.Children;
         foreach (var a in args.Where(a => a.Kind != "Str")) Expr(a);
 
-        void NoStrings(IEnumerable<AstNode> list) { foreach (var a in list) if (a.Kind == "Str") Error(a, "string argument not allowed here"); }
+        void NoStrings(IEnumerable<AstNode> list)
+        {
+            foreach (var a in list)
+                if (a.Kind == "Str")
+                    Error(a, "string argument not allowed here");
+        }
 
         switch (name)
         {
@@ -434,7 +578,12 @@ public sealed class Checker
                 if (args.Count != 1 || args[0].Kind != "Str") Error(n, "puts expects a string literal");
                 return;
             case "printf":
-                if (args.Count == 0 || args[0].Kind != "Str") { Error(n, "printf expects a string literal format"); return; }
+                if (args.Count == 0 || args[0].Kind != "Str")
+                {
+                    Error(n, "printf expects a string literal format");
+                    return;
+                }
+
                 NoStrings(args.Skip(1));
                 var need = Format.Parse(args[0].Bytes!).Count(p => p.Spec != '\0');
                 if (need != args.Count - 1) Error(n, $"printf format needs {need} argument(s), {args.Count - 1} given");
@@ -445,11 +594,27 @@ public sealed class Checker
         }
 
         var s = Lookup(name);
-        if (s is null) { Error(n, $"function '{name}' is not declared (only functions defined earlier in the file can be called)"); return; }
-        if (s.Kind != SymbolKind.Function) { Error(n, $"'{name}' is not a function"); return; }
-        if (s == _currentFunc) { Error(n, "recursion is not supported (functions are inlined at call sites)"); return; }
+        if (s is null)
+        {
+            Error(n, $"function '{name}' is not declared (only functions defined earlier in the file can be called)");
+            return;
+        }
+
+        if (s.Kind != SymbolKind.Function)
+        {
+            Error(n, $"'{name}' is not a function");
+            return;
+        }
+
+        if (s == _currentFunc)
+        {
+            Error(n, "recursion is not supported (functions are inlined at call sites)");
+            return;
+        }
+
         NoStrings(args);
-        if (args.Count != s.Params.Count) Error(n, $"'{name}' expects {s.Params.Count} argument(s), {args.Count} given");
+        if (args.Count != s.Params.Count)
+            Error(n, $"'{name}' expects {s.Params.Count} argument(s), {args.Count} given");
         n.Symbol = s;
     }
 }
@@ -465,12 +630,23 @@ public static class Format
         var r = new List<Piece>();
         for (var i = 0; i < fmt.Length; i++)
         {
-            if (fmt[i] != '%') { r.Add(new(fmt[i], 0)); continue; }
+            if (fmt[i] != '%')
+            {
+                r.Add(new(fmt[i], 0));
+                continue;
+            }
+
             i++;
-            if (i >= fmt.Length) { r.Add(new((byte)'%', 0)); break; }
+            if (i >= fmt.Length)
+            {
+                r.Add(new((byte)'%', 0));
+                break;
+            }
+
             if (fmt[i] == '%') r.Add(new((byte)'%', 0));
             else r.Add(new(0, fmt[i]));
         }
+
         return r;
     }
 }

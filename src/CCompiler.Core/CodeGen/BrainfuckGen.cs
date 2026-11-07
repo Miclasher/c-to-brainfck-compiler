@@ -18,18 +18,20 @@ public sealed class BrainfuckGen
     readonly ProgramInfo _info;
     readonly string[] _source;
     readonly bool _annotate;
-    int _ptr;          // where the real data pointer is after the code emitted so far
-    int _target;       // where the next instruction wants it to be (lazy moves)
-    int _top;          // next free scratch cell
-    Symbol? _fn;       // function whose body is being emitted (for tail return)
-    LoopCtx? _loop;    // innermost loop that contains break/continue
+    int _ptr; // where the real data pointer is after the code emitted so far
+    int _target; // where the next instruction wants it to be (lazy moves)
+    int _top; // next free scratch cell
+    Symbol? _fn; // function whose body is being emitted (for tail return)
+    LoopCtx? _loop; // innermost loop that contains break/continue
 
     /// <summary>break/continue are compiled to flags: statements after a jump are guarded by !skip, the loop test by !brk.</summary>
     sealed record LoopCtx(int Skip, int Brk);
 
     BrainfuckGen(ProgramInfo info, string[] source, bool annotate)
     {
-        _info = info; _source = source; _annotate = annotate;
+        _info = info;
+        _source = source;
+        _annotate = annotate;
         _top = info.VarCells;
     }
 
@@ -50,7 +52,12 @@ public sealed class BrainfuckGen
         var code = _sb.ToString();
         // peephole: adjacent inverse operations cancel
         string prev;
-        do { prev = code; code = Regex.Replace(code, @"\+-|-\+|<>|><", ""); } while (code != prev);
+        do
+        {
+            prev = code;
+            code = Regex.Replace(code, @"\+-|-\+|<>|><", "");
+        } while (code != prev);
+
         return Wrap(code).TrimStart('\n').TrimEnd() + "\n";
     }
 
@@ -59,16 +66,23 @@ public sealed class BrainfuckGen
         var sb = new StringBuilder();
         foreach (var line in s.Split('\n'))
         {
-            if (line.StartsWith("//")) { sb.Append(line).Append('\n'); continue; }
+            if (line.StartsWith("//"))
+            {
+                sb.Append(line).Append('\n');
+                continue;
+            }
+
             for (var i = 0; i < line.Length; i += 100) sb.Append(line, i, Math.Min(100, line.Length - i)).Append('\n');
         }
+
         return sb.ToString();
     }
 
     void Op(string s)
     {
         var d = _target - _ptr;
-        if (d > 0) _sb.Append('>', d); else if (d < 0) _sb.Append('<', -d);
+        if (d > 0) _sb.Append('>', d);
+        else if (d < 0) _sb.Append('<', -d);
         _ptr = _target;
         _sb.Append(s);
     }
@@ -104,8 +118,13 @@ public sealed class BrainfuckGen
     /// <summary>Add a constant, using a multiply loop for big deltas to keep the output readable.</summary>
     void Add(int cell, int n)
     {
-        n = ((n + 128) & 0xFF) - 128;                   // -128..127
-        if (Math.Abs(n) < 10) { AddRaw(cell, n); return; }
+        n = ((n + 128) & 0xFF) - 128; // -128..127
+        if (Math.Abs(n) < 10)
+        {
+            AddRaw(cell, n);
+            return;
+        }
+
         var abs = Math.Abs(n);
         var a = (int)Math.Round(Math.Sqrt(abs));
         var b = abs / a;
@@ -113,30 +132,53 @@ public sealed class BrainfuckGen
         var sign = Math.Sign(n);
         var u = Alloc();
         AddRaw(u, a);
-        Loop(u, () => { AddRaw(u, -1); AddRaw(cell, sign * b); });
+        Loop(u, () =>
+        {
+            AddRaw(u, -1);
+            AddRaw(cell, sign * b);
+        });
         AddRaw(cell, sign * r);
         Free(u);
     }
 
-    void Zero(int cell) { Goto(cell); Op("[-]"); }
+    void Zero(int cell)
+    {
+        Goto(cell);
+        Op("[-]");
+    }
 
-    void SetConst(int cell, int n) { Zero(cell); Add(cell, n); }
+    void SetConst(int cell, int n)
+    {
+        Zero(cell);
+        Add(cell, n);
+    }
 
     void Loop(int cell, Action body)
     {
-        Goto(cell); Op("[");
+        Goto(cell);
+        Op("[");
         body();
-        Goto(cell); Op("]");
+        Goto(cell);
+        Op("]");
     }
 
     /// <summary>dst += src; src = 0.</summary>
-    void Move(int src, int dst) => Loop(src, () => { AddRaw(src, -1); AddRaw(dst, 1); });
+    void Move(int src, int dst) => Loop(src, () =>
+    {
+        AddRaw(src, -1);
+        AddRaw(dst, 1);
+    });
 
     /// <summary>dst += sign * src; src unchanged.</summary>
     void AddCopy(int src, int dst, int sign = 1)
     {
         var t = Alloc();
-        Loop(src, () => { AddRaw(src, -1); AddRaw(dst, sign); AddRaw(t, 1); });
+        Loop(src, () =>
+        {
+            AddRaw(src, -1);
+            AddRaw(dst, sign);
+            AddRaw(t, 1);
+        });
         Move(t, src);
         Free(t);
     }
@@ -146,13 +188,27 @@ public sealed class BrainfuckGen
     {
         if (els is null)
         {
-            Loop(cond, () => { Zero(cond); then(); });
+            Loop(cond, () =>
+            {
+                Zero(cond);
+                then();
+            });
             return;
         }
+
         var ef = Alloc();
         AddRaw(ef, 1);
-        Loop(cond, () => { Zero(cond); AddRaw(ef, -1); then(); });
-        Loop(ef, () => { AddRaw(ef, -1); els(); });
+        Loop(cond, () =>
+        {
+            Zero(cond);
+            AddRaw(ef, -1);
+            then();
+        });
+        Loop(ef, () =>
+        {
+            AddRaw(ef, -1);
+            els();
+        });
         Free(ef);
     }
 
@@ -160,18 +216,27 @@ public sealed class BrainfuckGen
 
     void Free(int cell)
     {
-        if (cell != _top - 1) throw new InvalidOperationException($"scratch stack corrupted (freeing {cell}, top {_top})");
+        if (cell != _top - 1)
+            throw new InvalidOperationException($"scratch stack corrupted (freeing {cell}, top {_top})");
         _top--;
     }
 
-    void Discard(int cell) { Zero(cell); Free(cell); }
+    void Discard(int cell)
+    {
+        Zero(cell);
+        Free(cell);
+    }
 
     /// <summary>x = !x (strict 0/1 result).</summary>
     void Invert(int cell)
     {
         var t = Alloc();
         AddRaw(t, 1);
-        Loop(cell, () => { Zero(cell); AddRaw(t, -1); });
+        Loop(cell, () =>
+        {
+            Zero(cell);
+            AddRaw(t, -1);
+        });
         Move(t, cell);
         Free(t);
     }
@@ -180,7 +245,11 @@ public sealed class BrainfuckGen
     void Normalize(int cell)
     {
         var t = Alloc();
-        Loop(cell, () => { Zero(cell); AddRaw(t, 1); });
+        Loop(cell, () =>
+        {
+            Zero(cell);
+            AddRaw(t, 1);
+        });
         Move(t, cell);
         Free(t);
     }
@@ -190,8 +259,13 @@ public sealed class BrainfuckGen
     /// <summary>Fresh cell = (a &lt; b), unsigned. a and b are left untouched.</summary>
     int Lt(int a, int b)
     {
-        var res = Alloc(); var ca = Alloc(); var cb = Alloc(); var f = Alloc();
-        AddCopy(a, ca); AddCopy(b, cb); AddRaw(f, 1);
+        var res = Alloc();
+        var ca = Alloc();
+        var cb = Alloc();
+        var f = Alloc();
+        AddCopy(a, ca);
+        AddCopy(b, cb);
+        AddRaw(f, 1);
         Loop(f, () =>
         {
             var c1 = Alloc();
@@ -201,7 +275,11 @@ public sealed class BrainfuckGen
                 {
                     var c2 = Alloc();
                     AddCopy(cb, c2);
-                    IfElse(c2, () => { AddRaw(ca, -1); AddRaw(cb, -1); }, () => Zero(f));
+                    IfElse(c2, () =>
+                    {
+                        AddRaw(ca, -1);
+                        AddRaw(cb, -1);
+                    }, () => Zero(f));
                     Free(c2);
                 },
                 els: () =>
@@ -214,7 +292,9 @@ public sealed class BrainfuckGen
                 });
             Free(c1);
         });
-        Discard(f); Discard(cb); Discard(ca);
+        Discard(f);
+        Discard(cb);
+        Discard(ca);
         return res;
     }
 
@@ -251,7 +331,8 @@ public sealed class BrainfuckGen
     /// <summary>x = x mod k; returns fresh cell with x div k.</summary>
     int DivModConst(int x, int k)
     {
-        var q = Alloc(); var y = Alloc();
+        var q = Alloc();
+        var y = Alloc();
         SetConst(y, k);
         DivMod(x, y, q);
         Discard(y);
@@ -261,7 +342,8 @@ public sealed class BrainfuckGen
     void PrintDigit(int cell)
     {
         AddRaw(cell, 48);
-        Goto(cell); Op(".");
+        Goto(cell);
+        Op(".");
         AddRaw(cell, -48);
     }
 
@@ -275,11 +357,13 @@ public sealed class BrainfuckGen
         IfElse(hc, () => PrintDigit(h), null);
         Free(hc);
         var any = Alloc();
-        AddCopy(h, any); AddCopy(t, any);
+        AddCopy(h, any);
+        AddCopy(t, any);
         IfElse(any, () => PrintDigit(t), null);
         Free(any);
         PrintDigit(v);
-        Discard(t); Discard(h);
+        Discard(t);
+        Discard(h);
     }
 
     void EmitBytes(IEnumerable<byte> bytes)
@@ -292,8 +376,10 @@ public sealed class BrainfuckGen
         {
             Add(t, b - cur);
             cur = b;
-            Goto(t); Op(".");
+            Goto(t);
+            Op(".");
         }
+
         Discard(t);
     }
 
@@ -306,13 +392,15 @@ public sealed class BrainfuckGen
     {
         switch (e.Kind)
         {
-            case "Num": case "Char":
+            case "Num":
+            case "Char":
             {
                 var t = Alloc();
                 Add(t, e.Value);
                 return t;
             }
-            case "Id": case "Index":
+            case "Id":
+            case "Index":
             {
                 var t = Alloc();
                 AddCopy(CellOf(e), t);
@@ -326,8 +414,18 @@ public sealed class BrainfuckGen
                 var res = Alloc();
                 var c = Eval(e.Children[0]);
                 IfElse(c,
-                    () => { var v = Eval(e.Children[1]); Move(v, res); Free(v); },
-                    () => { var v = Eval(e.Children[2]); Move(v, res); Free(v); });
+                    () =>
+                    {
+                        var v = Eval(e.Children[1]);
+                        Move(v, res);
+                        Free(v);
+                    },
+                    () =>
+                    {
+                        var v = Eval(e.Children[2]);
+                        Move(v, res);
+                        Free(v);
+                    });
                 Free(c);
                 return res;
             }
@@ -373,7 +471,11 @@ public sealed class BrainfuckGen
             case "-":
             {
                 var r = Alloc();
-                Loop(l, () => { AddRaw(l, -1); AddRaw(r, -1); });
+                Loop(l, () =>
+                {
+                    AddRaw(l, -1);
+                    AddRaw(r, -1);
+                });
                 Move(r, l);
                 Free(r);
                 break;
@@ -382,7 +484,11 @@ public sealed class BrainfuckGen
             {
                 var r = Alloc();
                 AddRaw(r, -1);
-                Loop(l, () => { AddRaw(l, -1); AddRaw(r, -1); });
+                Loop(l, () =>
+                {
+                    AddRaw(l, -1);
+                    AddRaw(r, -1);
+                });
                 Move(r, l);
                 Free(r);
                 break;
@@ -390,6 +496,7 @@ public sealed class BrainfuckGen
             case "!": Invert(l); break;
             default: throw new CompileException($"unary '{e.Text}' not supported", e.Line);
         }
+
         return l;
     }
 
@@ -400,17 +507,24 @@ public sealed class BrainfuckGen
         {
             var res = Alloc();
             var l = Eval(e.Children[0]);
+
             void EvalRhs()
             {
                 var r = Eval(e.Children[1]);
-                Loop(r, () => { Zero(r); AddRaw(res, 1); });
+                Loop(r, () =>
+                {
+                    Zero(r);
+                    AddRaw(res, 1);
+                });
                 Free(r);
             }
+
             if (op == "&&") IfElse(l, EvalRhs, null);
             else IfElse(l, () => AddRaw(res, 1), EvalRhs);
             Free(l);
             return res;
         }
+
         var a = Eval(e.Children[0]);
         var b = Eval(e.Children[1]);
         ApplyBinary(op, a, b, e.Line);
@@ -423,48 +537,77 @@ public sealed class BrainfuckGen
         switch (op)
         {
             case "+": Move(b, a); break;
-            case "-": Loop(b, () => { AddRaw(b, -1); AddRaw(a, -1); }); break;
+            case "-":
+                Loop(b, () =>
+                {
+                    AddRaw(b, -1);
+                    AddRaw(a, -1);
+                }); break;
             case "*":
             {
-                var z = Alloc(); var w = Alloc();
+                var z = Alloc();
+                var w = Alloc();
                 Loop(a, () =>
                 {
                     AddRaw(a, -1);
-                    Loop(b, () => { AddRaw(b, -1); AddRaw(z, 1); AddRaw(w, 1); });
+                    Loop(b, () =>
+                    {
+                        AddRaw(b, -1);
+                        AddRaw(z, 1);
+                        AddRaw(w, 1);
+                    });
                     Move(w, b);
                 });
                 Zero(b);
                 Move(z, a);
-                Free(w); Free(z);
+                Free(w);
+                Free(z);
                 break;
             }
-            case "/": case "%":
+            case "/":
+            case "%":
             {
                 var q = Alloc();
                 DivMod(a, b, q);
-                if (op == "/") { Zero(a); Move(q, a); }
+                if (op == "/")
+                {
+                    Zero(a);
+                    Move(q, a);
+                }
                 else Zero(q);
+
                 Free(q);
                 Zero(b);
                 break;
             }
-            case "==": case "!=":
+            case "==":
+            case "!=":
             {
-                Loop(b, () => { AddRaw(b, -1); AddRaw(a, -1); });   // a = a - b
-                if (op == "==") Invert(a); else Normalize(a);
+                Loop(b, () =>
+                {
+                    AddRaw(b, -1);
+                    AddRaw(a, -1);
+                }); // a = a - b
+                if (op == "==") Invert(a);
+                else Normalize(a);
                 break;
             }
-            case "<": case ">": case "<=": case ">=":
+            case "<":
+            case ">":
+            case "<=":
+            case ">=":
             {
                 var res = op is "<" or ">=" ? Lt(a, b) : Lt(b, a);
                 if (op is "<=" or ">=") Invert(res);
-                Zero(a); Zero(b);
+                Zero(a);
+                Zero(b);
                 Move(res, a);
                 Free(res);
                 break;
             }
             default: throw new CompileException($"operator '{op}' not supported at run time", line);
         }
+
         Free(b);
     }
 
@@ -475,13 +618,15 @@ public sealed class BrainfuckGen
             case "putchar":
             {
                 var v = Eval(e.Children[0]);
-                Goto(v); Op(".");
+                Goto(v);
+                Op(".");
                 return v;
             }
             case "getchar":
             {
                 var t = Alloc();
-                Goto(t); Op(",");
+                Goto(t);
+                Op(",");
                 return t;
             }
             case "puts":
@@ -493,19 +638,33 @@ public sealed class BrainfuckGen
                 var arg = 1;
                 foreach (var p in Format.Parse(e.Children[0].Bytes!))
                 {
-                    if (p.Spec == 0) { pending.Add(p.Literal); continue; }
-                    var a = e.Children[arg++];
-                    if (a.Kind is "Num" or "Char")   // folded at compile time: no runtime printing code needed
+                    if (p.Spec == 0)
                     {
-                        pending.AddRange(Encoding.ASCII.GetBytes(p.Spec == 'c' ? ((char)a.Value).ToString() : a.Value.ToString()));
+                        pending.Add(p.Literal);
                         continue;
                     }
-                    EmitBytes(pending); pending.Clear();
+
+                    var a = e.Children[arg++];
+                    if (a.Kind is "Num" or "Char") // folded at compile time: no runtime printing code needed
+                    {
+                        pending.AddRange(
+                            Encoding.ASCII.GetBytes(p.Spec == 'c' ? ((char)a.Value).ToString() : a.Value.ToString()));
+                        continue;
+                    }
+
+                    EmitBytes(pending);
+                    pending.Clear();
                     var v = Eval(a);
-                    if (p.Spec == 'c') { Goto(v); Op("."); }
+                    if (p.Spec == 'c')
+                    {
+                        Goto(v);
+                        Op(".");
+                    }
                     else PrintU8(v);
+
                     Discard(v);
                 }
+
                 EmitBytes(pending);
                 return Alloc();
             }
@@ -521,6 +680,7 @@ public sealed class BrainfuckGen
             Move(temps[i], p);
             Free(temps[i]);
         }
+
         InlineBody(fn);
         var res = Alloc();
         if (fn.ReturnCell is not null) Move(fn.ReturnCell.Cell, res);
@@ -543,7 +703,8 @@ public sealed class BrainfuckGen
         switch (e.Kind)
         {
             case "Assign": AssignCore(e); break;
-            case "PreInc": case "PostInc":
+            case "PreInc":
+            case "PostInc":
                 AddRaw(CellOf(e.Children[0]), e.Text == "++" ? 1 : -1);
                 break;
             case "Comma":
@@ -561,18 +722,33 @@ public sealed class BrainfuckGen
         {
             case "=":
             {
-                if (rhs.Kind is "Num" or "Char") { SetConst(cell, rhs.Value); break; }
+                if (rhs.Kind is "Num" or "Char")
+                {
+                    SetConst(cell, rhs.Value);
+                    break;
+                }
+
                 var v = Eval(rhs);
                 Zero(cell);
                 Move(v, cell);
                 Free(v);
                 break;
             }
-            case "+=": { var v = Eval(rhs); Move(v, cell); Free(v); break; }
+            case "+=":
+            {
+                var v = Eval(rhs);
+                Move(v, cell);
+                Free(v);
+                break;
+            }
             case "-=":
             {
                 var v = Eval(rhs);
-                Loop(v, () => { AddRaw(v, -1); AddRaw(cell, -1); });
+                Loop(v, () =>
+                {
+                    AddRaw(v, -1);
+                    AddRaw(cell, -1);
+                });
                 Free(v);
                 break;
             }
@@ -592,7 +768,12 @@ public sealed class BrainfuckGen
 
     void Cond(AstNode? cond, int into)
     {
-        if (cond is null) { SetConst(into, 1); return; }
+        if (cond is null)
+        {
+            SetConst(into, 1);
+            return;
+        }
+
         var v = Eval(cond);
         Zero(into);
         Move(v, into);
@@ -642,7 +823,10 @@ public sealed class BrainfuckGen
                 var f = Alloc();
                 var cond = s.Children[1].Children.FirstOrDefault();
                 Cond(cond, f);
-                RunLoop(s.Children[3], f, cond, () => { foreach (var u in s.Children[2].Children) ExecExpr(u); });
+                RunLoop(s.Children[3], f, cond, () =>
+                {
+                    foreach (var u in s.Children[2].Children) ExecExpr(u);
+                });
                 Free(f);
                 break;
             }
@@ -650,10 +834,16 @@ public sealed class BrainfuckGen
                 if (s.Children.Count == 1)
                 {
                     var v = Eval(s.Children[0]);
-                    if (_fn?.ReturnCell is { } rc) { Zero(rc.Cell); Move(v, rc.Cell); }
+                    if (_fn?.ReturnCell is { } rc)
+                    {
+                        Zero(rc.Cell);
+                        Move(v, rc.Cell);
+                    }
                     else Zero(v);
+
                     Free(v);
                 }
+
                 break;
             default: throw new CompileException($"cannot generate code for {s.Kind}", s.Line);
         }
@@ -684,6 +874,7 @@ public sealed class BrainfuckGen
                     Free(c);
                 }
             }
+
             Cond(cond, f);
             if (ctx is not null)
             {
@@ -694,7 +885,11 @@ public sealed class BrainfuckGen
             }
         });
         _loop = saved;
-        if (ctx is not null) { Discard(ctx.Brk); Discard(ctx.Skip); }
+        if (ctx is not null)
+        {
+            Discard(ctx.Brk);
+            Discard(ctx.Skip);
+        }
     }
 
     void StmtList(IReadOnlyList<AstNode> list)
@@ -722,13 +917,19 @@ public sealed class BrainfuckGen
         if (init is null) return;
         if (!sym.IsArray)
         {
-            if (init.Kind is "Num" or "Char") { SetConst(sym.Cell, init.Value); return; }
+            if (init.Kind is "Num" or "Char")
+            {
+                SetConst(sym.Cell, init.Value);
+                return;
+            }
+
             var v = Eval(init);
             Zero(sym.Cell);
             Move(v, sym.Cell);
             Free(v);
             return;
         }
+
         for (var i = 0; i < sym.Size; i++)
         {
             var cell = sym.Cell + i;
@@ -738,7 +939,13 @@ public sealed class BrainfuckGen
             {
                 var e = init.Children[i];
                 if (e.Kind is "Num" or "Char") SetConst(cell, e.Value);
-                else { var v = Eval(e); Zero(cell); Move(v, cell); Free(v); }
+                else
+                {
+                    var v = Eval(e);
+                    Zero(cell);
+                    Move(v, cell);
+                    Free(v);
+                }
             }
             else SetConst(cell, 0);
         }

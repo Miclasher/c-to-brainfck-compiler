@@ -1,51 +1,52 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>C → Brainfuck</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>C → Brainfuck</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>C → Brainfuck</h1>
-  <span class="sub">ANTLR4 C grammar · AST · constant folding · BF code generation</span>
-  <span class="spacer"></span>
-  <select id="sample" aria-label="Sample program"></select>
-  <label class="chk"><input type="checkbox" id="annotate" checked> comments in output</label>
-  <button id="compile" class="primary">Compile <kbd>Ctrl+Enter</kbd></button>
+    <h1>C → Brainfuck</h1>
+    <span class="sub">ANTLR4 C grammar · AST · constant folding · BF code generation</span>
+    <span class="spacer"></span>
+    <select id="sample" aria-label="Sample program"></select>
+    <label class="chk"><input type="checkbox" id="annotate" checked> comments in output</label>
+    <button id="compile" class="primary">Compile <kbd>Ctrl+Enter</kbd></button>
 </header>
 
 <main>
-  <section class="pane" id="editor-pane">
-    <div class="pane-title">C source</div>
-    <textarea id="source" spellcheck="false" wrap="off" aria-label="C source code"></textarea>
-    <div class="pane-title">Diagnostics <span id="diag-count" class="badge"></span></div>
-    <ul id="diagnostics" aria-live="polite"></ul>
-  </section>
+    <section class="pane" id="editor-pane">
+        <div class="pane-title">C source</div>
+        <textarea id="source" spellcheck="false" wrap="off" aria-label="C source code"></textarea>
+        <div class="pane-title">Diagnostics <span id="diag-count" class="badge"></span></div>
+        <ul id="diagnostics" aria-live="polite"></ul>
+    </section>
 
-  <section class="pane" id="output-pane">
-    <div class="tabs" role="tablist">
-      <button role="tab" data-tab="ast" aria-selected="true">AST</button>
-      <button role="tab" data-tab="cst" aria-selected="false">Parse tree</button>
-      <button role="tab" data-tab="bf" aria-selected="false">Brainfuck</button>
-      <span class="spacer"></span>
-      <label class="chk" id="fold-toggle"><input type="checkbox" id="folded" checked> after constant folding</label>
-      <button id="expand" class="ghost">Expand all</button>
-      <button id="collapse" class="ghost">Collapse</button>
-    </div>
-    <div id="tree" class="view"></div>
-    <div id="bf-view" class="view" hidden>
-      <div class="bf-bar">
-        <span id="bf-stats"></span>
-        <span class="spacer"></span>
-        <button id="copy" class="ghost">Copy</button>
-        <button id="download" class="ghost">Download .bf</button>
-      </div>
-      <pre id="bf"></pre>
-    </div>
-    <div id="legend" class="legend"></div>
-  </section>
+    <section class="pane" id="output-pane">
+        <div class="tabs" role="tablist">
+            <button role="tab" data-tab="ast" aria-selected="true">AST</button>
+            <button role="tab" data-tab="cst" aria-selected="false">Parse tree</button>
+            <button role="tab" data-tab="bf" aria-selected="false">Brainfuck</button>
+            <span class="spacer"></span>
+            <label class="chk" id="fold-toggle"><input type="checkbox" id="folded" checked> after constant
+                folding</label>
+            <button id="expand" class="ghost">Expand all</button>
+            <button id="collapse" class="ghost">Collapse</button>
+        </div>
+        <div id="tree" class="view"></div>
+        <div id="bf-view" class="view" hidden>
+            <div class="bf-bar">
+                <span id="bf-stats"></span>
+                <span class="spacer"></span>
+                <button id="copy" class="ghost">Copy</button>
+                <button id="download" class="ghost">Download .bf</button>
+            </div>
+            <pre id="bf"></pre>
+        </div>
+        <div id="legend" class="legend"></div>
+    </section>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>

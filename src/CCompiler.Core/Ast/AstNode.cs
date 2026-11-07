@@ -14,7 +14,9 @@ public sealed class AstNode
     [JsonPropertyName("children")] public List<AstNode> Children { get; set; } = [];
 
     /// <summary>Compile-time value for Num/Char nodes (8-bit unsigned semantics).</summary>
-    [JsonIgnore] public int Value { get; set; }
+    [JsonIgnore]
+    public int Value { get; set; }
+
     [JsonIgnore] public byte[]? Bytes { get; set; }
     [JsonIgnore] public Symbol? Symbol { get; set; }
 
@@ -40,8 +42,8 @@ public sealed class AstNode
     {
         yield return this;
         foreach (var c in Children)
-            foreach (var d in c.Walk())
-                yield return d;
+        foreach (var d in c.Walk())
+            yield return d;
     }
 
     public override string ToString() => Text is null ? Kind : $"{Kind}({Text})";
