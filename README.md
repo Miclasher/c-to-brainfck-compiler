@@ -22,20 +22,6 @@ In the page: pick a sample or type C, press **Compile** (Ctrl+Enter), then brows
 **AST**, **Parse tree** (the raw ANTLR tree) and **Brainfuck** (copy / download, then paste into any online interpreter,
 for example <https://copy.sh/brainfuck/>). The project deliberately contains no Brainfuck interpreter.
 
-## Layout
-
-| Path | What |
-|---|---|
-| `src/CCompiler.Core/Grammar/C.g4` | ANTLR4 grammar for C (grammars-v4, C11 + GNU extensions), unmodified |
-| `src/CCompiler.Core/Ast/` | `AstNode`, `AstBuilder` (parse tree → compact AST) |
-| `src/CCompiler.Core/Semantics/Checker.cs` | scopes, types, arity, lvalues, array bounds, **constant folding** |
-| `src/CCompiler.Core/CodeGen/BrainfuckGen.cs` | AST → Brainfuck |
-| `src/CCompiler.Core/Compiler.cs` | pipeline facade, ANTLR error listeners, parse-tree export |
-| `src/CCompiler.Web/` | ASP.NET minimal API (`POST /api/compile`) + `wwwroot` (d3 tree, editor) |
-| `tests/CCompiler.Tests/` | xunit tests |
-| `samples/*.c` | demo programs |
-| `docs/THEORY.md` | LALR / yacc / conflict resolution, ANTLR vs yacc, codegen design (for the defense) |
-
 ## What C is supported
 
 The **whole C grammar parses**. The Brainfuck backend compiles this subset and reports everything else
@@ -50,14 +36,3 @@ as an error with its line number:
 * I/O: `putchar`, `getchar`, `puts`, `printf` with a literal format and `%d %u %c %%`
 
 Not supported: pointers, structs/unions/enums, floats, `switch`, `goto`, runtime array indices, runtime bitwise `& | ^`.
-
-## Grading checklist (where to look)
-
-| Item | Where |
-|---|---|
-| Working project | `dotnet test`, web app |
-| C grammar | `Grammar/C.g4` |
-| LALR / yacc / conflicts theory | `docs/THEORY.md` |
-| Semantics / evaluation | `Checker.cs` (folding, diagnostics) |
-| Target code generation | `BrainfuckGen.cs`, "Brainfuck" tab |
-| AST visualization (d3.js) | `wwwroot/app.js`, "AST" / "Parse tree" tabs |
